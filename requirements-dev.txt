@@ -1,4 +1,5 @@
-django>2.0,<2.2
+Flask>=1.0
+Flask-Login
 pysaml2>=4.5.0
 
 pytest==4.0.1

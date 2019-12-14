@@ -1,20 +1,24 @@
 import copy
 import logging
 
-from django.conf import settings
-from django.contrib.auth import logout
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
-from django.http import (HttpResponse, HttpResponseBadRequest,
-                         HttpResponseRedirect)
-from django.urls import reverse
-from django.utils.datastructures import MultiValueDictKeyError
-from django.utils.decorators import method_decorator
-from django.utils.module_loading import import_string
-from django.views import View
-from django.views.decorators.cache import never_cache
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from flask import current_app, url_for, request, abort, session, redirect, Response
+from flask_login import logout_user, current_user, login_required
+from flask.views import MethodView
+
+# from django.conf import settings
+# from django.contrib.auth import logout
+# from django.contrib.auth.mixins import LoginRequiredMixin
+# from django.core.exceptions import ImproperlyConfigured  # , PermissionDenied
+# from django.http import HttpResponse
+# from django.urls import reverse
+# from django.utils.datastructures import MultiValueDictKeyError
+# from django.utils.decorators import method_decorator
+# from django.utils.module_loading import import_string
+# from django.views import View
+# from django.views.decorators.cache import never_cache
+# from django.views.decorators.csrf import csrf_exempt
+# from django.views.decorators.http import require_http_methods
+
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.authn_context import PASSWORD, AuthnBroker, authn_context_class_ref
 from saml2.config import IdPConfig
@@ -23,64 +27,62 @@ from saml2.metadata import entity_descriptor
 from saml2.s_utils import UnknownPrincipal, UnsupportedBinding
 from saml2.saml import NAMEID_FORMAT_UNSPECIFIED
 from saml2.server import Server
-from six import text_type
+
+# from six import text_type
 
 from .processors import BaseProcessor
+from .util import import_string, never_cache
 
 logger = logging.getLogger(__name__)
 
-try:
-    idp_sp_config = settings.SAML_IDP_SPCONFIG
-except AttributeError:
-    raise ImproperlyConfigured("SAML_IDP_SPCONFIG not defined in settings.")
-
 
 @never_cache
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
-def sso_entry(request):
+def sso_entry():
     """ Entrypoint view for SSO. Gathers the parameters from the HTTP request, stores them in the session
         and redirects the requester to the login_process view.
     """
     if request.method == 'POST':
-        passed_data = request.POST
+        passed_data = request.form
         binding = BINDING_HTTP_POST
     else:
-        passed_data = request.GET
+        passed_data = request.args
         binding = BINDING_HTTP_REDIRECT
 
-    request.session['Binding'] = binding
+    session['Binding'] = binding
 
     try:
-        request.session['SAMLRequest'] = passed_data['SAMLRequest']
-    except (KeyError, MultiValueDictKeyError) as e:
-        return HttpResponseBadRequest(e)
-    request.session['RelayState'] = passed_data.get('RelayState', '')
+        session['SAMLRequest'] = passed_data['SAMLRequest']
+    except KeyError:
+        return abort(400)
+
+    session['RelayState'] = passed_data.get('RelayState', '')
+
     # TODO check how the redirect saml way works. Taken from example idp in pysaml2.
     if "SigAlg" in passed_data and "Signature" in passed_data:
-        request.session['SigAlg'] = passed_data['SigAlg']
-        request.session['Signature'] = passed_data['Signature']
-    return HttpResponseRedirect(reverse('djangosaml2idp:saml_login_process'))
+        session['SigAlg'] = passed_data['SigAlg']
+        session['Signature'] = passed_data['Signature']
+    return redirect(url_for('flasksaml2idp.saml_login_process'))
 
 
 class IdPHandlerViewMixin:
     """ Contains some methods used by multiple views """
+    decorators = [never_cache]
+    error_func = import_string(getattr(current_app.config, 'SAML_IDP_ERROR_VIEW_FUNC',
+                                       'flasksaml2idp.error_views.saml_IDP_error_view'))
 
-    error_view = import_string(getattr(settings, 'SAML_IDP_ERROR_VIEW_CLASS', 'djangosaml2idp.error_views.SamlIDPErrorView'))
+    def handle_error(self, **kwargs):
+        return self.error_func(**kwargs)
 
-    def handle_error(self, request, **kwargs):
-        return self.error_view.as_view()(request, **kwargs)
-
-    def dispatch(self, request, *args, **kwargs):
+    def dispatch_request(self, *args, **kwargs):
         """ Construct IDP server with config from settings dict
         """
         conf = IdPConfig()
         try:
-            conf.load(copy.deepcopy(settings.SAML_IDP_CONFIG))
+            conf.load(copy.deepcopy(current_app.config['SAML_IDP_CONFIG']))
             self.IDP = Server(config=conf)
         except Exception as e:
             return self.handle_error(request, exception=e)
-        return super(IdPHandlerViewMixin, self).dispatch(request, *args, **kwargs)
+        return super(IdPHandlerViewMixin, self).dispatch_request(*args, **kwargs)
 
     def get_processor(self, entity_id, sp_config):
         """ Instantiate user-specified processor or default to an all-access base processor.
@@ -102,22 +104,23 @@ class IdPHandlerViewMixin:
         return processor.create_identity(user, sp_mapping, **sp_config.get('extra_config', {}))
 
 
-@method_decorator(never_cache, name='dispatch')
-class LoginProcessView(LoginRequiredMixin, IdPHandlerViewMixin, View):
+class LoginProcessView(IdPHandlerViewMixin, MethodView):
     """ View which processes the actual SAML request and returns a self-submitting form with the SAML response.
         The login_required decorator ensures the user authenticates first on the IdP using 'normal' ways.
     """
+    decorators = [never_cache, login_required]
 
-    def get(self, request, *args, **kwargs):
-        binding = request.session.get('Binding', BINDING_HTTP_POST)
+    def get(self, *args, **kwargs):
+        binding = session.get('Binding', BINDING_HTTP_POST)
 
         # Parse incoming request
         try:
-            req_info = self.IDP.parse_authn_request(request.session['SAMLRequest'], binding)
+            req_info = self.IDP.parse_authn_request(session['SAMLRequest'], binding)
         except Exception as excp:
-            return self.handle_error(request, exception=excp)
+            return self.handle_error(exception=excp)
+
         # Signed request for HTTP-REDIRECT
-        if "SigAlg" in request.session and "Signature" in request.session:
+        if "SigAlg" in session and "Signature" in session:
             _certs = self.IDP.metadata.certs(req_info.message.issuer.text, "any", "signing")
             verified_ok = False
             for cert in _certs:
@@ -133,18 +136,23 @@ class LoginProcessView(LoginRequiredMixin, IdPHandlerViewMixin, View):
         try:
             resp_args = self.IDP.response_args(req_info.message)
         except (UnknownPrincipal, UnsupportedBinding) as excp:
-            return self.handle_error(request, exception=excp, status=400)
+            return self.handle_error(exception=excp, status=400)
 
         try:
-            sp_config = settings.SAML_IDP_SPCONFIG[resp_args['sp_entity_id']]
+            sp_config = current_app.config['SAML_IDP_SPCONFIG'][resp_args['sp_entity_id']]
         except Exception:
-            return self.handle_error(request, exception=ImproperlyConfigured("No config for SP %s defined in SAML_IDP_SPCONFIG" % resp_args['sp_entity_id']), status=400)
+            # TODO Inproper config exception
+            return self.handle_error(exception=Exception("No config for SP %s defined in SAML_IDP_SPCONFIG"
+                                                         % resp_args['sp_entity_id']),
+                                     status=400)
 
         processor = self.get_processor(resp_args['sp_entity_id'], sp_config)
 
         # Check if user has access to the service of this SP
         if not processor.has_access(request):
-            return self.handle_error(request, exception=PermissionDenied("You do not have access to this resource"), status=403)
+            # TODO PermissionDenied Exception
+            return self.handle_error(exception=Exception("You do not have access to this resource"),
+                                     status=403)
 
         identity = self.get_identity(processor, request.user, sp_config)
 
@@ -158,56 +166,61 @@ class LoginProcessView(LoginRequiredMixin, IdPHandlerViewMixin, View):
         try:
             authn_resp = self.IDP.create_authn_response(
                 identity=identity, userid=user_id,
-                name_id=NameID(format=resp_args['name_id_policy'].format, sp_name_qualifier=resp_args['sp_entity_id'], text=user_id),
+                name_id=NameID(format=resp_args['name_id_policy'].format, sp_name_qualifier=resp_args['sp_entity_id'],
+                               text=user_id),
                 authn=AUTHN_BROKER.get_authn_by_accr(req_authn_context),
                 sign_response=self.IDP.config.getattr("sign_response", "idp") or False,
                 sign_assertion=self.IDP.config.getattr("sign_assertion", "idp") or False,
                 **resp_args)
         except Exception as excp:
-            return self.handle_error(request, exception=excp, status=500)
+            return self.handle_error(exception=excp, status=500)
 
         http_args = self.IDP.apply_binding(
             binding=resp_args['binding'],
             msg_str="%s" % authn_resp,
             destination=resp_args['destination'],
-            relay_state=request.session['RelayState'],
+            relay_state=session['RelayState'],
             response=True)
 
         logger.debug('http args are: %s' % http_args)
 
-        return self.render_response(request, processor, http_args)
+        return self.render_response(processor, http_args)
 
-    def render_response(self, request, processor, http_args):
+    def render_response(self, processor, http_args):
         """ Return either as redirect to MultiFactorView or as html with self-submitting form.
         """
-        if processor.enable_multifactor(request.user):
+        if processor.enable_multifactor(current_user):
             # Store http_args in session for after multi factor is complete
-            request.session['saml_data'] = http_args['data']
+            session['saml_data'] = http_args['data']
             logger.debug("Redirecting to process_multi_factor")
-            return HttpResponseRedirect(reverse('saml_multi_factor'))
+            return redirect(url_for('flasksaml2idp.saml_multi_factor'))
         logger.debug("Performing SAML redirect")
-        return HttpResponse(http_args['data'])
+        return Response(http_args['data'])
 
 
-@method_decorator(never_cache, name='dispatch')
-class SSOInitView(LoginRequiredMixin, IdPHandlerViewMixin, View):
+class SSOInitView(IdPHandlerViewMixin, MethodView):
 
-    def post(self, request, *args, **kwargs):
-        return self.get(request, *args, **kwargs)
+    decorators = [never_cache, login_required]
 
-    def get(self, request, *args, **kwargs):
-        passed_data = request.POST if request.method == 'POST' else request.GET
+    def post(self, *args, **kwargs):
+        return self.get(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        passed_data = request.form if request.method == 'POST' else request.args
 
         # get sp information from the parameters
         try:
             sp_entity_id = passed_data['sp']
         except KeyError as excp:
-            return self.handle_error(request, exception=excp, status=400)
+            return self.handle_error(exception=excp, status=400)
 
         try:
-            sp_config = settings.SAML_IDP_SPCONFIG[sp_entity_id]
+            sp_config = current_app.config['SAML_IDP_SPCONFIG'].SAML_IDP_SPCONFIG[sp_entity_id]
         except Exception:
-            return self.handle_error(request, exception=ImproperlyConfigured("No config for SP %s defined in SAML_IDP_SPCONFIG" % sp_entity_id), status=400)
+            # TODO improperly configured exception
+            return self.handle_error(exception=Exception("No config for SP %s defined in SAML_IDP_SPCONFIG"
+                                                         % sp_entity_id),
+                                     status=400)
 
         binding_out, destination = self.IDP.pick_binding(
             service="assertion_consumer_service",
@@ -216,16 +229,18 @@ class SSOInitView(LoginRequiredMixin, IdPHandlerViewMixin, View):
         processor = self.get_processor(sp_entity_id, sp_config)
 
         # Check if user has access to the service of this SP
-        if not processor.has_access(request):
-            return self.handle_error(request, exception=PermissionDenied("You do not have access to this resource"), status=403)
+        if not processor.has_access():
+            # TODO permission denied exception
+            return self.handle_error(exception=Exception("You do not have access to this resource"),
+                                     status=403)
 
-        identity = self.get_identity(processor, request.user, sp_config)
+        identity = self.get_identity(processor, current_user, sp_config)
 
         req_authn_context = PASSWORD
         AUTHN_BROKER = AuthnBroker()
         AUTHN_BROKER.add(authn_context_class_ref(req_authn_context), "")
 
-        user_id = processor.get_user_id(request.user)
+        user_id = processor.get_user_id(current_user)
 
         # Construct SamlResponse messages
         try:
@@ -246,7 +261,7 @@ class SSOInitView(LoginRequiredMixin, IdPHandlerViewMixin, View):
                 sign_assertion=sign_assertion,
                 **passed_data)
         except Exception as excp:
-            return self.handle_error(request, exception=excp, status=500)
+            return self.handle_error(exception=excp, status=500)
 
         # Return as html with self-submitting form.
         http_args = self.IDP.apply_binding(
@@ -255,14 +270,14 @@ class SSOInitView(LoginRequiredMixin, IdPHandlerViewMixin, View):
             destination=destination,
             relay_state=passed_data['RelayState'],
             response=True)
-        return HttpResponse(http_args['data'])
+        return Response(http_args['data'])
 
 
-@method_decorator(never_cache, name='dispatch')
-class ProcessMultiFactorView(LoginRequiredMixin, View):
+class ProcessMultiFactorView(MethodView):
     """ This view is used in an optional step is to perform 'other' user validation, for example 2nd factor checks.
         Override this view per the documentation if using this functionality to plug in your custom validation logic.
     """
+    decorators = [never_cache, login_required]
 
     def multifactor_is_valid(self, request):
         """ The code here can do whatever it needs to validate your user (via request.user or elsewise).
@@ -270,22 +285,23 @@ class ProcessMultiFactorView(LoginRequiredMixin, View):
         """
         return True
 
-    def get(self, request, *args, **kwargs):
+    def get(self):
         if self.multifactor_is_valid(request):
-            logger.debug('MultiFactor succeeded for %s' % request.user)
-            # If authentication succeeded, log in is ok
-            return HttpResponse(request.session['saml_data'])
-        logger.debug("MultiFactor failed; %s will not be able to log in" % request.user)
-        logout(request)
-        raise PermissionDenied("MultiFactor authentication factor failed")
+            logger.debug('MultiFactor succeeded for %s' % current_user)
+            # TODO response
+
+        logger.debug("MultiFactor failed; %s will not be able to log in" % current_user)
+        logout_user()
+        # TODO response
+        return abort(401)
 
 
 @never_cache
-def metadata(request):
+def metadata():
     """ Returns an XML with the SAML 2.0 metadata for this Idp.
         The metadata is constructed on-the-fly based on the config dict in the django settings.
     """
     conf = IdPConfig()
-    conf.load(copy.deepcopy(settings.SAML_IDP_CONFIG))
+    conf.load(copy.deepcopy(current_app.config['SAML_IDP_CONFIG']))
     metadata = entity_descriptor(conf)
-    return HttpResponse(content=text_type(metadata).encode('utf-8'), content_type="text/xml; charset=utf8")
+    return Response(response=str(metadata).encode('utf-8'), content_type="text/xml; charset=utf8")
