@@ -137,7 +137,7 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
         processor = self.get_processor(resp_args['sp_entity_id'], sp_config)
 
         # Check if user has access to the service of this SP
-        if not processor.has_access(request):
+        if not processor.has_access():
             # TODO PermissionDenied Exception
             return self.handle_error(exception=Exception("You do not have access to this resource"),
                                      status=403)
