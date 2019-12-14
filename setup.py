@@ -29,8 +29,6 @@ setup(
         "Development Status :: 5 - Production/Stable",
         'Environment :: Web Environment',
         "Framework :: Flask",
-        "Framework :: Flask :: 1.0",
-        "Framework :: Flask :: 1.1",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
         "License :: OSI Approved :: Apache Software License",

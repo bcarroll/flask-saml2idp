@@ -1,3 +1,4 @@
-django>=2.0
-djangosaml2idp==0.5.0
+Flask>=1.0
+Flask-Login
+flasksaml2idp==0.1.0
 pysaml2>=4.5.0

@@ -15,7 +15,7 @@ services:
 
   idp:
     restart: always
-    container_name: djangosaml2idp_idp
+    container_name: flasksaml2idp_idp
     build: idp
     stdin_open: true
     tty: true
