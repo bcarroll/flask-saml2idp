@@ -17,7 +17,7 @@ setup(
     ]),
     install_requires=[
         'Flask>=1.0',
-        'Flask-Login'
+        'Flask-Login',
         'pysaml2>=4.5.0'
         ],
     license='Apache Software License 2.0',
