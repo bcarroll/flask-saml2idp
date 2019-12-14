@@ -2,7 +2,7 @@ Flask>=1.0
 Flask-Login
 pysaml2>=4.5.0
 
-pytest==4.0.1
-pytest-django==3.4.4
+pytest~=5.3
+pytest-flask~=0.15
 pytest-pythonpath==0.7.3
-python-dateutil==2.7.5
+python-dateutil==2.8.1

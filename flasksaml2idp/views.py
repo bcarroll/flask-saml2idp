@@ -5,20 +5,6 @@ from flask import current_app, url_for, request, abort, session, redirect, Respo
 from flask_login import logout_user, current_user, login_required
 from flask.views import MethodView
 
-# from django.conf import settings
-# from django.contrib.auth import logout
-# from django.contrib.auth.mixins import LoginRequiredMixin
-# from django.core.exceptions import ImproperlyConfigured  # , PermissionDenied
-# from django.http import HttpResponse
-# from django.urls import reverse
-# from django.utils.datastructures import MultiValueDictKeyError
-# from django.utils.decorators import method_decorator
-# from django.utils.module_loading import import_string
-# from django.views import View
-# from django.views.decorators.cache import never_cache
-# from django.views.decorators.csrf import csrf_exempt
-# from django.views.decorators.http import require_http_methods
-
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.authn_context import PASSWORD, AuthnBroker, authn_context_class_ref
 from saml2.config import IdPConfig
@@ -27,8 +13,6 @@ from saml2.metadata import entity_descriptor
 from saml2.s_utils import UnknownPrincipal, UnsupportedBinding
 from saml2.saml import NAMEID_FORMAT_UNSPECIFIED
 from saml2.server import Server
-
-# from six import text_type
 
 from .processors import BaseProcessor
 from .util import import_string, never_cache
@@ -67,8 +51,12 @@ def sso_entry():
 class IdPHandlerViewMixin:
     """ Contains some methods used by multiple views """
     decorators = [never_cache]
-    error_func = import_string(getattr(current_app.config, 'SAML_IDP_ERROR_VIEW_FUNC',
-                                       'flasksaml2idp.error_views.saml_IDP_error_view'))
+    error_func = None
+
+    def __init__(self, *args, **kwargs):
+        self.error_func = import_string(getattr(current_app.config, 'SAML_IDP_ERROR_VIEW_FUNC',
+                                        'flasksaml2idp.error_views.saml_IDP_error_view'))
+        return super(IdPHandlerViewMixin, self).__init__(*args, **kwargs)
 
     def handle_error(self, **kwargs):
         return self.error_func(**kwargs)
