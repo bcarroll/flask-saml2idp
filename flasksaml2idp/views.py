@@ -142,13 +142,13 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
             return self.handle_error(exception=Exception("You do not have access to this resource"),
                                      status=403)
 
-        identity = self.get_identity(processor, request.user, sp_config)
+        identity = self.get_identity(processor, current_user, sp_config)
 
         req_authn_context = req_info.message.requested_authn_context or PASSWORD
         AUTHN_BROKER = AuthnBroker()
         AUTHN_BROKER.add(authn_context_class_ref(req_authn_context), "")
 
-        user_id = processor.get_user_id(request.user)
+        user_id = processor.get_user_id(current_user)
 
         # Construct SamlResponse message
         try:
@@ -267,14 +267,14 @@ class ProcessMultiFactorView(MethodView):
     """
     decorators = [never_cache, login_required]
 
-    def multifactor_is_valid(self, request):
-        """ The code here can do whatever it needs to validate your user (via request.user or elsewise).
+    def multifactor_is_valid(self):
+        """ The code here can do whatever it needs to validate your user (via request / current_user or elsewise).
             It must return True for authentication to be considered a success.
         """
         return True
 
     def get(self):
-        if self.multifactor_is_valid(request):
+        if self.multifactor_is_valid():
             logger.debug('MultiFactor succeeded for %s' % current_user)
             # TODO response
 
