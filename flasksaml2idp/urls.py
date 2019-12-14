@@ -1,8 +1,8 @@
+import os
 from flask import Blueprint
-
 from . import views
 
-blueprint = Blueprint('flasksaml2idp', __name__, template_folder='templates')
+blueprint = Blueprint('flasksaml2idp', __name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
 
 blueprint.add_url_rule('/sso/post', 'saml_login_post', views.sso_entry, methods=['GET', 'POST'])
 blueprint.add_url_rule('/sso/redirect', 'saml_login_redirect', views.sso_entry)

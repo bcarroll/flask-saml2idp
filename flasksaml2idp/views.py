@@ -69,7 +69,7 @@ class IdPHandlerViewMixin:
             conf.load(copy.deepcopy(current_app.config['SAML_IDP_CONFIG']))
             self.IDP = Server(config=conf)
         except Exception as e:
-            return self.handle_error(request, exception=e)
+            return self.handle_error(exception=e)
         return super(IdPHandlerViewMixin, self).dispatch_request(*args, **kwargs)
 
     def get_processor(self, entity_id, sp_config):
@@ -118,7 +118,7 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
                 #    break
                 pass
             if not verified_ok:
-                return self.handle_error(request, extra_message="Message signature verification failure", status=400)
+                return self.handle_error(extra_message="Message signature verification failure", status=400)
 
         # Gather response arguments
         try:
@@ -203,7 +203,7 @@ class SSOInitView(IdPHandlerViewMixin, MethodView):
             return self.handle_error(exception=excp, status=400)
 
         try:
-            sp_config = current_app.config['SAML_IDP_SPCONFIG'].SAML_IDP_SPCONFIG[sp_entity_id]
+            sp_config = current_app.config['SAML_IDP_SPCONFIG'][sp_entity_id]
         except Exception:
             # TODO improperly configured exception
             return self.handle_error(exception=Exception("No config for SP %s defined in SAML_IDP_SPCONFIG"

@@ -12,4 +12,4 @@ def saml_IDP_error_view(**kwargs):
         "extra_message": kwargs.get("extra_message"),
     }
 
-    return render_template('djangosaml2idp/error.html', **context)
+    return render_template('flasksaml2idp/error.html', **context)
