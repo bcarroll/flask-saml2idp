@@ -1,4 +1,4 @@
-# Contributing to the djangosaml2idp package
+# Contributing to the flasksaml2idp package
 
 First of all, thank you for contributing to the project! The more, the merrier.
 
