@@ -2,35 +2,35 @@
 import os
 from setuptools import setup, find_packages
 
-from djangosaml2idp import __version__
+from flasksaml2idp import __version__
 
 setup(
-    name='djangosaml2idp',
+    name='flasksaml2idp',
     version=__version__,
-    description='SAML 2.0 Identity Provider for Django',
-    keywords="django,pysaml2,sso,saml2,federated authentication,authentication,idp",
-    author='Mathieu Hinderyckx',
-    author_email='mathieu.hinderyckx@gmail.com',
-    maintainer="Mathieu Hinderyckx",
+    description='SAML 2.0 Identity Provider for Flask',
+    keywords="flask,pysaml2,sso,saml2,federated authentication,authentication,idp",
+    author='Yoeri Otten, Mathieu Hinderyckx',
+    author_email='yoeri@vck.utwente.nl, mathieu.hinderyckx@gmail.com',
+    maintainer="Yoeri Otten",
     long_description="\n\n".join([
         open(os.path.join(os.path.dirname(__file__), 'README.rst')).read(),
     ]),
     install_requires=[
-        'django>=2.0',
+        'Flask>=1.0',
+        'Flask-Login'
         'pysaml2>=4.5.0'
         ],
     license='Apache Software License 2.0',
     packages=find_packages(exclude=["tests*", "docs", "example_setup"]),
-    url='https://github.com/OTA-Insight/djangosaml2idp/',
+    url='https://github.com/verenigingcampuskabel/flask-saml2idp/',
     zip_safe=False,
     include_package_data=True,
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         'Environment :: Web Environment',
-        "Framework :: Django",
-        "Framework :: Django :: 2.0",
-        "Framework :: Django :: 2.1",
-        "Framework :: Django :: 2.2",
+        "Framework :: Flask",
+        "Framework :: Flask :: 1.0",
+        "Framework :: Flask :: 1.1",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
         "License :: OSI Approved :: Apache Software License",
@@ -40,6 +40,7 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Topic :: Internet :: WWW/HTTP",
         "Topic :: Internet :: WWW/HTTP :: WSGI",
         "Topic :: Security",
