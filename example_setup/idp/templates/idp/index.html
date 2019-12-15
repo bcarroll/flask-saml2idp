@@ -10,8 +10,8 @@
 
 <body>
     <p>-- @ Identity Provider --</p>
-    {% if request.user.is_authenticated %}
-        <p>LOGGED IN - <a href={{ logout_url }}>LOGOUT</a></p>
+    {% if current_user.is_authenticated %}
+        <p>LOGGED IN - <a href={{ url_for('logout') }}>LOGOUT</a></p>
         <ul>
         {% for k, v in user_attrs %}
             <li>{{k}}: {{v}}</li>
@@ -19,10 +19,10 @@
         </ul>
 
         {% for sp_id in known_sp_ids %}
-            <p><a href="{% url 'djangosaml2idp:saml_idp_init' %}?sp={{sp_id|urlencode:""}}&RelayState=%2F">Perform IdP-initiated login to {{sp_id}}</a>></p>
+            <p><a href="{{ url_for('flasksaml2idp.saml_idp_init') }}?sp={{ sp_id|urlencode }}&RelayState=%2F">Perform IdP-initiated login to {{sp_id}}</a></p>
         {% endfor %}
     {% else %}
-        <p>LOGGED OUT - <a href={{ login_url }}>LOGIN</a></p>
+        <p>LOGGED OUT - <a href={{ url_for('login') }}>LOGIN</a></p>
     {% endif %}
 
 </body>
