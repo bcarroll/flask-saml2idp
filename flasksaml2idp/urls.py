@@ -21,5 +21,5 @@ def disable_cache(response):
 
     response.headers['Cache-Control'] = 'max-age=0, no-cache, no-store, must-revalidate, private'
     response.headers['Pragma'] = 'no-cache'
-    response.headers["Expires"] = "0".headers["Expires"] = '0'
+    response.headers['Expires'] = '0'
     return response
