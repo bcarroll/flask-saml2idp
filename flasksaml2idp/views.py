@@ -15,12 +15,11 @@ from saml2.saml import NAMEID_FORMAT_UNSPECIFIED
 from saml2.server import Server
 
 from .processors import BaseProcessor
-from .util import import_string, never_cache
+from .util import import_string
 
 logger = logging.getLogger(__name__)
 
 
-@never_cache
 def sso_entry():
     """ Entrypoint view for SSO. Gathers the parameters from the HTTP request, stores them in the session
         and redirects the requester to the login_process view.
@@ -50,7 +49,6 @@ def sso_entry():
 
 class IdPHandlerViewMixin:
     """ Contains some methods used by multiple views """
-    decorators = [never_cache]
     error_func = None
 
     def __init__(self, *args, **kwargs):
@@ -96,7 +94,7 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
     """ View which processes the actual SAML request and returns a self-submitting form with the SAML response.
         The login_required decorator ensures the user authenticates first on the IdP using 'normal' ways.
     """
-    decorators = [never_cache, login_required]
+    decorators = [login_required]
 
     def get(self, *args, **kwargs):
         binding = session.get('Binding', BINDING_HTTP_POST)
@@ -129,7 +127,6 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
         try:
             sp_config = current_app.config['SAML_IDP_SPCONFIG'][resp_args['sp_entity_id']]
         except Exception:
-            # TODO Inproper config exception
             return self.handle_error(exception=Exception("No config for SP %s defined in SAML_IDP_SPCONFIG"
                                                          % resp_args['sp_entity_id']),
                                      status=400)
@@ -138,7 +135,6 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
 
         # Check if user has access to the service of this SP
         if not processor.has_access():
-            # TODO PermissionDenied Exception
             return self.handle_error(exception=Exception("You do not have access to this resource"),
                                      status=403)
 
@@ -188,7 +184,7 @@ class LoginProcessView(IdPHandlerViewMixin, MethodView):
 
 class SSOInitView(IdPHandlerViewMixin, MethodView):
 
-    decorators = [never_cache, login_required]
+    decorators = [login_required]
 
     def post(self, *args, **kwargs):
         return self.get(*args, **kwargs)
@@ -205,7 +201,6 @@ class SSOInitView(IdPHandlerViewMixin, MethodView):
         try:
             sp_config = current_app.config['SAML_IDP_SPCONFIG'][sp_entity_id]
         except Exception:
-            # TODO improperly configured exception
             return self.handle_error(exception=Exception("No config for SP %s defined in SAML_IDP_SPCONFIG"
                                                          % sp_entity_id),
                                      status=400)
@@ -218,7 +213,6 @@ class SSOInitView(IdPHandlerViewMixin, MethodView):
 
         # Check if user has access to the service of this SP
         if not processor.has_access():
-            # TODO permission denied exception
             return self.handle_error(exception=Exception("You do not have access to this resource"),
                                      status=403)
 
@@ -265,7 +259,7 @@ class ProcessMultiFactorView(MethodView):
     """ This view is used in an optional step is to perform 'other' user validation, for example 2nd factor checks.
         Override this view per the documentation if using this functionality to plug in your custom validation logic.
     """
-    decorators = [never_cache, login_required]
+    decorators = [login_required]
 
     def multifactor_is_valid(self):
         """ The code here can do whatever it needs to validate your user (via request / current_user or elsewise).
@@ -280,11 +274,9 @@ class ProcessMultiFactorView(MethodView):
 
         logger.debug("MultiFactor failed; %s will not be able to log in" % current_user)
         logout_user()
-        # TODO response
         return abort(401)
 
 
-@never_cache
 def metadata():
     """ Returns an XML with the SAML 2.0 metadata for this Idp.
         The metadata is constructed on-the-fly based on the config dict in the django settings.

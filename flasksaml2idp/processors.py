@@ -23,7 +23,6 @@ class BaseProcessor:
         """ Get identifier for a user. Take the one defined in settings.SAML_IDP_DJANGO_USERNAME_FIELD first, if not set
             use the USERNAME_FIELD property which is set on the user Model. This defaults to the user.username field.
         """
-        # print(current_app.config)
         user_field = current_app.config['SAML_IDP_FLASK_USERNAME_FIELD'] \
             if 'SAML_IDP_FLASK_USERNAME_FIELD' in current_app.config else getattr(user, 'USERNAME_FIELD', 'username')
         return str(getattr(user, user_field))
