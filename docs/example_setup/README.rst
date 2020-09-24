@@ -68,12 +68,14 @@ To stop the containers::
 Certificate generation
 ----------------------
 
-The provided self-signed certificates included in this example are valid until 2028. Should you need to regenerate them, you can use the `generate.sh` script to generate new ones.
-For e.g. the IdP certificate:
+The provided self-signed certificates included in this example are valid until 2028.
+Should you need to regenerate them, you can use the `generate.sh` script to generate a new private key and public certificate.
 
-1. Ensure the subj has the correct hostname in the openssl command:  `/CN=idp.localhost.com`
-2. Execute the script: `./generate.sh`. This will create a private.key & public.cert pair
-3. Copy the newly create files to the idp/certificates folder
-4. Copy the public.cert content without the first and last line into the sp/saml2_config/idp_metadata.xml tags `ns2:X509Certificate` (there are 2 of them)
+For the IdP certificate:
+1. `cd example_setup/idp/certificates`
+2. Execute the script: `./generate.sh`. This will create a new private.key & public.cert pair
+3. Copy the public.cert content without the first and last line into the sp/saml2_config/idp_metadata.xml tags `ns2:X509Certificate` (there are 2 of them)
 
-For the SP certificates, the process is the same but the hostname is `sp.localhost.com` and in step 3 & 4 switch idp with sp folder.
+For the SP certificate:
+1. `cd example_setup/sp/certificates`
+2. Execute the script: `./generate.sh`. This will create a new private.key & public.cert pair
