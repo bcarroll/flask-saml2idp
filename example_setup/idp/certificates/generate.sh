@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Execute to generate new certificates
+# Execute to generate new Identity Provider certificates
 
 rm private.key
 rm public.cert
