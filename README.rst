@@ -105,6 +105,6 @@ Run ``py.test`` from the project root::
 
 Example project
 ---------------
-The directory ``example_project`` contains a barebone demo setup to demonstrate the login-logout functionality.
-It consists of a Service Provider implemented with `djangosaml2 <https://github.com/knaperek/djangosaml2/>`_ and an Identity Provider using ``djangosaml2idp``.
+The directory ``example_setup`` contains a barebone demo setup to demonstrate the login-logout functionality.
+It consists of a Service Provider implemented with `djangosaml2 <https://github.com/knaperek/djangosaml2/>`_ and an Identity Provider using ``flask-saml2idp``.
 The readme in that folder contains more information on how to run it.
